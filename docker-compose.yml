@@ -1,0 +1,41 @@
+version: '3'
+
+services:
+  nginx:
+    image: nginx:1.15-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    depends_on:
+      - flask_app
+    networks:
+      - app-network
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+  flask_app:
+    container_name: flask_app
+    restart: always
+    build:
+      context: ./app
+    ports:
+      - "8000:8000"
+    command: gunicorn -w 4 -b 0.0.0.0:8000 app:app
+    environment:
+    - SECRET_KEY=secret2
+    - APP_SETTINGS=config.DevelopmentConfig
+    volumes:
+      - ./app:/code/
+    networks:
+      - app-network
+
+networks:
+  app-network:
